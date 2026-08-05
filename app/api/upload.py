@@ -8,7 +8,7 @@ from app.services.upload import upload_image
 router = APIRouter()
 
 
-@router.post("", response_model=UploadResponse)
+@router.post("", response_model=UploadResponse, summary="이미지 업로드")
 async def upload_image_route(
     file: UploadFile = File(...),
     _: User = Depends(get_current_user)
