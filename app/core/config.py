@@ -14,6 +14,8 @@ class Settings(BaseSettings):
     KAKAO_CLIENT_SECRET: str = ""
     IS_LOCAL: bool = True
     REDIRECT_URI: str = ""
+    AZURE_STORAGE_CONNECTION_STR: str = ""
+    AZURE_STORAGE_CONTAINER_NAME: str = ""
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
