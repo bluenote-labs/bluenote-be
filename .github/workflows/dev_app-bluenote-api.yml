@@ -5,72 +5,70 @@
 name: Build and deploy Python app to Azure Web App - app-bluenote-api
 
 on:
-  push:
-    branches:
-      - dev
-  workflow_dispatch:
+    push:
+        branches:
+            - dev
+    workflow_dispatch:
 
 jobs:
-  build:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read #This is required for actions/checkout
+    build:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read #This is required for actions/checkout
 
-    steps:
-      - uses: actions/checkout@v4
+        steps:
+            - uses: actions/checkout@v4
 
-      - name: Set up Python version
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.14'
+            - name: Set up Python version
+              uses: actions/setup-python@v5
+              with:
+                  python-version: "3.12"
 
-      # 🛠️ Local Build Section (Optional)
-      # The following section in your workflow is designed to catch build issues early on the client side, before deployment. This can be helpful for debugging and validation. However, if this step significantly increases deployment time and early detection is not critical for your workflow, you may remove this section to streamline the deployment process.
-      - name: Create and Start virtual environment and Install dependencies
-        run: |
-          python -m venv antenv
-          source antenv/bin/activate
-          pip install -r requirements.txt
-                
-      # By default, when you enable GitHub CI/CD integration through the Azure portal, the platform automatically sets the SCM_DO_BUILD_DURING_DEPLOYMENT application setting to true. This triggers the use of Oryx, a build engine that handles application compilation and dependency installation (e.g., pip install) directly on the platform during deployment. Hence, we exclude the antenv virtual environment directory from the deployment artifact to reduce the payload size. 
-      - name: Upload artifact for deployment jobs
-        uses: actions/upload-artifact@v4
-        with:
-          name: python-app
-          path: |
-            .
-            !antenv/
+            # 🛠️ Local Build Section (Optional)
+            # The following section in your workflow is designed to catch build issues early on the client side, before deployment. This can be helpful for debugging and validation. However, if this step significantly increases deployment time and early detection is not critical for your workflow, you may remove this section to streamline the deployment process.
+            - name: Create and Start virtual environment and Install dependencies
+              run: |
+                  python -m venv antenv
+                  source antenv/bin/activate
+                  pip install -r requirements.txt
 
-      # 🚫 Opting Out of Oryx Build
-      # If you prefer to disable the Oryx build process during deployment, follow these steps:
-      # 1. Remove the SCM_DO_BUILD_DURING_DEPLOYMENT app setting from your Azure App Service Environment variables.
-      # 2. Refer to sample workflows for alternative deployment strategies: https://github.com/Azure/actions-workflow-samples/tree/master/AppService
-      
+            # By default, when you enable GitHub CI/CD integration through the Azure portal, the platform automatically sets the SCM_DO_BUILD_DURING_DEPLOYMENT application setting to true. This triggers the use of Oryx, a build engine that handles application compilation and dependency installation (e.g., pip install) directly on the platform during deployment. Hence, we exclude the antenv virtual environment directory from the deployment artifact to reduce the payload size.
+            - name: Upload artifact for deployment jobs
+              uses: actions/upload-artifact@v4
+              with:
+                  name: python-app
+                  path: |
+                      .
+                      !antenv/
 
-  deploy:
-    runs-on: ubuntu-latest
-    needs: build
-    permissions:
-      id-token: write #This is required for requesting the JWT
-      contents: read #This is required for actions/checkout
+            # 🚫 Opting Out of Oryx Build
+            # If you prefer to disable the Oryx build process during deployment, follow these steps:
+            # 1. Remove the SCM_DO_BUILD_DURING_DEPLOYMENT app setting from your Azure App Service Environment variables.
+            # 2. Refer to sample workflows for alternative deployment strategies: https://github.com/Azure/actions-workflow-samples/tree/master/AppService
 
-    steps:
-      - name: Download artifact from build job
-        uses: actions/download-artifact@v4
-        with:
-          name: python-app
-      
-      - name: Login to Azure
-        uses: azure/login@v2
-        with:
-          client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9000D2AAC0A84450961F80529FDE211B }}
-          tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_80E754B11B7B469FAAA951888ECD3827 }}
-          subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_C2A67903321046628804B110E96443AE }}
+    deploy:
+        runs-on: ubuntu-latest
+        needs: build
+        permissions:
+            id-token: write #This is required for requesting the JWT
+            contents: read #This is required for actions/checkout
 
-      - name: 'Deploy to Azure Web App'
-        uses: azure/webapps-deploy@v3
-        id: deploy-to-webapp
-        with:
-          app-name: 'app-bluenote-api'
-          slot-name: 'Production'
-          
+        steps:
+            - name: Download artifact from build job
+              uses: actions/download-artifact@v4
+              with:
+                  name: python-app
+
+            - name: Login to Azure
+              uses: azure/login@v2
+              with:
+                  client-id: ${{ secrets.AZUREAPPSERVICE_CLIENTID_9000D2AAC0A84450961F80529FDE211B }}
+                  tenant-id: ${{ secrets.AZUREAPPSERVICE_TENANTID_80E754B11B7B469FAAA951888ECD3827 }}
+                  subscription-id: ${{ secrets.AZUREAPPSERVICE_SUBSCRIPTIONID_C2A67903321046628804B110E96443AE }}
+
+            - name: "Deploy to Azure Web App"
+              uses: azure/webapps-deploy@v3
+              id: deploy-to-webapp
+              with:
+                  app-name: "app-bluenote-api"
+                  slot-name: "Production"
