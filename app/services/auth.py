@@ -1,8 +1,9 @@
 import logging
-from fastapi import Request, Response
-from app.core.security import create_access_token, create_refresh_token
+from beanie import PydanticObjectId
+from fastapi import Request, Response, HTTPException, status
+from app.core.security import create_access_token, create_refresh_token, verify_token
 from app.models.user import User
-from app.schemas.auth import Token, UserInfo
+from app.schemas.auth import Token, TokenRefreshResponse, UserInfo
 from app.schemas.base import MessageResponse
 from app.services.kakao import get_kakao_token, get_kakao_user
 from app.core.config import settings
@@ -78,3 +79,48 @@ async def logout(response: Response, request: Request) -> MessageResponse:
         path="/"
     )
     return MessageResponse(message="로그아웃 되었어요.")
+
+
+async def refresh_token(request: Request, response: Response) -> TokenRefreshResponse:
+    refresh_token = request.cookies.get("refreshToken")
+    
+    if not refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰이에요."
+        )
+
+    try:
+        payload = verify_token(refresh_token)
+        user_id = payload.get("sub")
+
+    except Exception as e:
+        logger.error(f"refreshToken 검증 실패: {e}") 
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰이에요."
+        )
+
+    user = await User.get(PydanticObjectId(user_id))
+    
+    if not user or user.refresh_token != refresh_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="유효하지 않은 토큰이에요."
+        )
+
+    new_access_token = create_access_token({"sub": user_id})
+    new_refresh_token = create_refresh_token({"sub": user_id})
+
+    await user.update({"$set": {"refresh_token": new_refresh_token}})
+
+    response.set_cookie(
+        key="refreshToken",
+        value=new_refresh_token,
+        httponly=True,
+        secure=not settings.IS_LOCAL,
+        samesite="lax" if settings.IS_LOCAL else "none",
+        path="/"
+    )
+
+    return TokenRefreshResponse(accessToken=new_access_token)

@@ -16,3 +16,7 @@ class Token(BaseModel):
     accessToken: str
     user: UserInfo
     isNewUser: bool
+
+
+class TokenRefreshResponse(BaseModel):
+    accessToken: str
