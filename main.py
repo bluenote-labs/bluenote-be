@@ -2,7 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 from fastapi import FastAPI
-from app.api import auth
+from app.api import auth, user
 from app.core.logger import setup_logging
 
 setup_logging()
@@ -32,6 +32,7 @@ app.add_middleware(
 )
 
 app.include_router(auth.router, prefix="/api/auth", tags=["auth"])
+app.include_router(user.router, prefix="/api/users", tags=["user"])
 
 @app.get("/")
 async def root():
