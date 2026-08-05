@@ -1,10 +1,12 @@
 import logging
-from fastapi import Response
+from fastapi import Request, Response
 from app.core.security import create_access_token, create_refresh_token
 from app.models.user import User
 from app.schemas.auth import Token, UserInfo
+from app.schemas.base import MessageResponse
 from app.services.kakao import get_kakao_token, get_kakao_user
 from app.core.config import settings
+
 
 logger = logging.getLogger(__name__)
 
@@ -58,3 +60,21 @@ async def kakao_login(code: str, response: Response) -> dict:
         ),
         isNewUser=not is_returning_user,
     )
+
+
+async def logout(response: Response, request: Request) -> MessageResponse:
+    refresh_token = request.cookies.get("refreshToken")
+
+    if refresh_token:
+        await User.find_one(User.refresh_token == refresh_token).update(
+            {"$set": {User.refresh_token: None}}
+        )
+
+    response.delete_cookie(
+        key="refreshToken",
+        httponly=True,
+        secure=not settings.IS_LOCAL,
+        samesite="lax" if settings.IS_LOCAL else "none",
+        path="/"
+    )
+    return MessageResponse(message="로그아웃 되었어요.")
