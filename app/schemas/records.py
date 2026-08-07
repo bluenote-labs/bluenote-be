@@ -55,6 +55,20 @@ class RecordDetailResponse(BaseModel):
     updatedAt: datetime
 
 
+class RecordUpdateRequest(BaseModel):
+    title: Optional[str] = None
+    content: Optional[dict] = None
+    imageUrl: Optional[str] = None
+    goalIds: Optional[List[str]] = None
+
+
+class RecordUpdateResponse(BaseModel):
+    id: str
+    date: str
+    title: str
+    updatedAt: datetime
+
+
 class RecordListQuery(BaseModel):
     page: int = Field(1, ge=1)
     limit: int = Field(10, ge=1, le=100)

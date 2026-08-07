@@ -13,6 +13,8 @@ from app.schemas.records import (
     RecordGenerateRequest,
     RecordListQuery,
     RecordListResponse,
+    RecordUpdateRequest,
+    RecordUpdateResponse,
 )
 from app.services.records import (
     create_record,
@@ -20,6 +22,7 @@ from app.services.records import (
     generate_record_stream,
     get_record,
     list_records,
+    update_record,
 )
 
 router = APIRouter()
@@ -60,6 +63,15 @@ async def get_record_route(
     user: User = Depends(get_current_user)
 ):
     return await get_record(user, record_id)
+
+
+@router.put("/{record_id}", response_model=RecordUpdateResponse, summary="기록 수정")
+async def update_record_route(
+    record_id: str,
+    payload: RecordUpdateRequest,
+    user: User = Depends(get_current_user)
+):
+    return await update_record(user, record_id, payload)
 
 
 @router.delete("/{record_id}", response_model=SuccessResponse, summary="기록 삭제")

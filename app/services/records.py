@@ -21,6 +21,8 @@ from app.schemas.records import (
     RecordListItem,
     RecordListQuery,
     RecordListResponse,
+    RecordUpdateRequest,
+    RecordUpdateResponse,
 )
 from app.services.ai import AIGenerationError, generate_json, stream_completion
 
@@ -206,6 +208,31 @@ async def get_record(user: User, record_id: str) -> RecordDetailResponse:
         imageUrl=record.image_url,
         goals=_to_goal_summaries(record.goal_ids, goal_titles),
         createdAt=record.created_at,
+        updatedAt=record.updated_at,
+    )
+
+
+async def update_record(user: User, record_id: str, payload: RecordUpdateRequest) -> RecordUpdateResponse:
+    record = await _get_owned_record(user, record_id)
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "title" in updates:
+        record.title = updates["title"]
+    if "content" in updates:
+        record.content = updates["content"]
+        record.plain_text = _extract_plain_text(updates["content"])
+    if "imageUrl" in updates:
+        record.image_url = updates["imageUrl"]
+    if "goalIds" in updates:
+        record.goal_ids = [PydanticObjectId(goal_id) for goal_id in updates["goalIds"]]
+
+    record.updated_at = datetime.now()
+    await record.save()
+
+    return RecordUpdateResponse(
+        id=str(record.id),
+        date=record.date,
+        title=record.title,
         updatedAt=record.updated_at,
     )
 
