@@ -5,6 +5,7 @@ from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.models.user import User
+from app.schemas.base import SuccessResponse
 from app.schemas.records import (
     RecordCreateRequest,
     RecordCreateResponse,
@@ -15,6 +16,7 @@ from app.schemas.records import (
 )
 from app.services.records import (
     create_record,
+    delete_record,
     generate_record_stream,
     get_record,
     list_records,
@@ -58,3 +60,11 @@ async def get_record_route(
     user: User = Depends(get_current_user)
 ):
     return await get_record(user, record_id)
+
+
+@router.delete("/{record_id}", response_model=SuccessResponse, summary="기록 삭제")
+async def delete_record_route(
+    record_id: str,
+    user: User = Depends(get_current_user)
+):
+    return await delete_record(user, record_id)

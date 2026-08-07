@@ -12,6 +12,7 @@ from fastapi import HTTPException, status
 from app.models.goal import Goal
 from app.models.record import Record
 from app.models.user import User
+from app.schemas.base import SuccessResponse
 from app.schemas.records import (
     GoalSummary,
     RecordCreateRequest,
@@ -176,7 +177,7 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
     )
 
 
-async def get_record(user: User, record_id: str) -> RecordDetailResponse:
+async def _get_owned_record(user: User, record_id: str) -> Record:
     try:
         record_oid = PydanticObjectId(record_id)
     except (InvalidId, ValueError):
@@ -189,6 +190,11 @@ async def get_record(user: User, record_id: str) -> RecordDetailResponse:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="기록을 찾을 수 없어요."
         )
+    return record
+
+
+async def get_record(user: User, record_id: str) -> RecordDetailResponse:
+    record = await _get_owned_record(user, record_id)
 
     goal_titles = await _fetch_goal_titles(record.goal_ids)
 
@@ -202,3 +208,9 @@ async def get_record(user: User, record_id: str) -> RecordDetailResponse:
         createdAt=record.created_at,
         updatedAt=record.updated_at,
     )
+
+
+async def delete_record(user: User, record_id: str) -> SuccessResponse:
+    record = await _get_owned_record(user, record_id)
+    await record.delete()
+    return SuccessResponse(success=True)
