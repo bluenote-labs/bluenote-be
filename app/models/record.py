@@ -10,7 +10,7 @@ class Record(Document):
     date: str
     title: str
     content: dict
-    plain_text: str
+    plain_text: str = ""
     image_url: Optional[str] = None
     goal_ids: List[PydanticObjectId] = []
     created_at: datetime = Field(default_factory=datetime.now)

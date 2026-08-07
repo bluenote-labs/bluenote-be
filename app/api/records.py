@@ -8,11 +8,17 @@ from app.models.user import User
 from app.schemas.records import (
     RecordCreateRequest,
     RecordCreateResponse,
+    RecordDetailResponse,
     RecordGenerateRequest,
     RecordListQuery,
     RecordListResponse,
 )
-from app.services.records import create_record, generate_record_stream, list_records
+from app.services.records import (
+    create_record,
+    generate_record_stream,
+    get_record,
+    list_records,
+)
 
 router = APIRouter()
 
@@ -44,3 +50,11 @@ async def list_records_route(
     user: User = Depends(get_current_user)
 ):
     return await list_records(user, query)
+
+
+@router.get("/{record_id}", response_model=RecordDetailResponse, summary="기록 상세 조회")
+async def get_record_route(
+    record_id: str,
+    user: User = Depends(get_current_user)
+):
+    return await get_record(user, record_id)

@@ -44,6 +44,17 @@ class RecordListResponse(BaseModel):
     hasNext: bool
 
 
+class RecordDetailResponse(BaseModel):
+    id: str
+    date: str
+    title: str
+    content: dict
+    imageUrl: Optional[str] = None
+    goals: List[GoalSummary] = []
+    createdAt: datetime
+    updatedAt: datetime
+
+
 class RecordListQuery(BaseModel):
     page: int = Field(1, ge=1)
     limit: int = Field(10, ge=1, le=100)

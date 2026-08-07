@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import AsyncIterator
 
 from beanie import PydanticObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
 from app.models.goal import Goal
@@ -15,6 +16,7 @@ from app.schemas.records import (
     GoalSummary,
     RecordCreateRequest,
     RecordCreateResponse,
+    RecordDetailResponse,
     RecordListItem,
     RecordListQuery,
     RecordListResponse,
@@ -54,6 +56,21 @@ def _extract_plain_text(node: dict) -> str:
         parts.append(_extract_plain_text(child))
 
     return " ".join(part for part in parts if part)
+
+
+async def _fetch_goal_titles(goal_ids) -> dict:
+    if not goal_ids:
+        return {}
+    goals = await Goal.find({"_id": {"$in": list(goal_ids)}}).to_list()
+    return {goal.id: goal.title for goal in goals}
+
+
+def _to_goal_summaries(goal_ids, goal_titles: dict) -> list[GoalSummary]:
+    return [
+        GoalSummary(id=str(goal_id), title=goal_titles[goal_id])
+        for goal_id in goal_ids
+        if goal_id in goal_titles
+    ]
 
 
 async def generate_record_stream(input_text: str) -> AsyncIterator[str]:
@@ -138,8 +155,7 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
     )
 
     goal_ids = {goal_id for record in records for goal_id in record.goal_ids}
-    goals = await Goal.find({"_id": {"$in": list(goal_ids)}}).to_list() if goal_ids else []
-    goal_titles = {goal.id: goal.title for goal in goals}
+    goal_titles = await _fetch_goal_titles(goal_ids)
 
     return RecordListResponse(
         records=[
@@ -148,11 +164,7 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
                 date=record.date,
                 title=record.title,
                 imageUrl=record.image_url,
-                goals=[
-                    GoalSummary(id=str(goal_id), title=goal_titles[goal_id])
-                    for goal_id in record.goal_ids
-                    if goal_id in goal_titles
-                ],
+                goals=_to_goal_summaries(record.goal_ids, goal_titles),
                 createdAt=record.created_at,
             )
             for record in records
@@ -161,4 +173,32 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
         page=query.page,
         totalPages=total_pages,
         hasNext=query.page < total_pages,
+    )
+
+
+async def get_record(user: User, record_id: str) -> RecordDetailResponse:
+    try:
+        record_oid = PydanticObjectId(record_id)
+    except (InvalidId, ValueError):
+        record = None
+    else:
+        record = await Record.find_one(Record.id == record_oid, Record.user_id == user.id)
+
+    if not record:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="기록을 찾을 수 없어요."
+        )
+
+    goal_titles = await _fetch_goal_titles(record.goal_ids)
+
+    return RecordDetailResponse(
+        id=str(record.id),
+        date=record.date,
+        title=record.title,
+        content=record.content,
+        imageUrl=record.image_url,
+        goals=_to_goal_summaries(record.goal_ids, goal_titles),
+        createdAt=record.created_at,
+        updatedAt=record.updated_at,
     )
