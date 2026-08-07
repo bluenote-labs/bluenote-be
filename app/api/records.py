@@ -1,10 +1,18 @@
-from fastapi import APIRouter, Depends, status
+from typing import Annotated
+
+from fastapi import APIRouter, Depends, Query, status
 from fastapi.responses import StreamingResponse
 
 from app.core.security import get_current_user
 from app.models.user import User
-from app.schemas.records import RecordCreateRequest, RecordCreateResponse, RecordGenerateRequest
-from app.services.records import create_record, generate_record_stream
+from app.schemas.records import (
+    RecordCreateRequest,
+    RecordCreateResponse,
+    RecordGenerateRequest,
+    RecordListQuery,
+    RecordListResponse,
+)
+from app.services.records import create_record, generate_record_stream, list_records
 
 router = APIRouter()
 
@@ -28,3 +36,11 @@ async def create_record_route(
     user: User = Depends(get_current_user)
 ):
     return await create_record(user, payload)
+
+
+@router.get("", response_model=RecordListResponse, summary="기록 목록 조회")
+async def list_records_route(
+    query: Annotated[RecordListQuery, Query()],
+    user: User = Depends(get_current_user)
+):
+    return await list_records(user, query)

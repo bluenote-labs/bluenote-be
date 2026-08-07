@@ -1,5 +1,7 @@
 import json
 import logging
+import math
+import re
 from datetime import datetime
 from typing import AsyncIterator
 
@@ -8,7 +10,13 @@ from fastapi import HTTPException, status
 
 from app.models.record import Record
 from app.models.user import User
-from app.schemas.records import RecordCreateRequest, RecordCreateResponse
+from app.schemas.records import (
+    RecordCreateRequest,
+    RecordCreateResponse,
+    RecordListItem,
+    RecordListQuery,
+    RecordListResponse,
+)
 from app.services.ai import AIGenerationError, generate_json, stream_completion
 
 logger = logging.getLogger(__name__)
@@ -93,4 +101,54 @@ async def create_record(user: User, payload: RecordCreateRequest) -> RecordCreat
         date=record.date,
         title=record.title,
         createdAt=record.created_at,
+    )
+
+
+async def list_records(user: User, query: RecordListQuery) -> RecordListResponse:
+    filters = [Record.user_id == user.id]
+
+    if query.month:
+        filters.append({"date": {"$regex": f"^{re.escape(query.month)}"}})
+    if query.goal_id:
+        filters.append(Record.goal_ids == PydanticObjectId(query.goal_id))
+    if query.keyword:
+        pattern = re.escape(query.keyword)
+        filters.append({
+            "$or": [
+                {"title": {"$regex": pattern, "$options": "i"}},
+                {"plain_text": {"$regex": pattern, "$options": "i"}},
+            ]
+        })
+    if query.has_image is True:
+        filters.append({"image_url": {"$ne": None}})
+    elif query.has_image is False:
+        filters.append({"image_url": None})
+
+    db_query = Record.find(*filters)
+    total = await db_query.count()
+    total_pages = math.ceil(total / query.limit) if total > 0 else 0
+
+    records = await (
+        db_query.sort(-Record.date)
+        .skip((query.page - 1) * query.limit)
+        .limit(query.limit)
+        .to_list()
+    )
+
+    return RecordListResponse(
+        records=[
+            RecordListItem(
+                id=str(record.id),
+                date=record.date,
+                title=record.title,
+                imageUrl=record.image_url,
+                goalIds=[str(goal_id) for goal_id in record.goal_ids],
+                createdAt=record.created_at,
+            )
+            for record in records
+        ],
+        total=total,
+        page=query.page,
+        totalPages=total_pages,
+        hasNext=query.page < total_pages,
     )
