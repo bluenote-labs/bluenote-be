@@ -33,6 +33,19 @@ def _format_sse(data: dict) -> str:
     return f"data: {json.dumps(data, ensure_ascii=False)}\n\n"
 
 
+def _extract_plain_text(node: dict) -> str:
+    if not isinstance(node, dict):
+        return ""
+
+    parts = []
+    if node.get("type") == "text":
+        parts.append(node.get("text", ""))
+    for child in node.get("content", []) or []:
+        parts.append(_extract_plain_text(child))
+
+    return " ".join(part for part in parts if part)
+
+
 async def generate_record_stream(input_text: str) -> AsyncIterator[str]:
     try:
         title_result = await generate_json(TITLE_SYSTEM_PROMPT, input_text)
@@ -69,6 +82,7 @@ async def create_record(user: User, payload: RecordCreateRequest) -> RecordCreat
         date=today,
         title=payload.title,
         content=payload.content,
+        plain_text=_extract_plain_text(payload.content),
         image_url=payload.imageUrl,
         goal_ids=[PydanticObjectId(goal_id) for goal_id in payload.goalIds],
     )
