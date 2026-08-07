@@ -8,9 +8,11 @@ from typing import AsyncIterator
 from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
+from app.models.goal import Goal
 from app.models.record import Record
 from app.models.user import User
 from app.schemas.records import (
+    GoalSummary,
     RecordCreateRequest,
     RecordCreateResponse,
     RecordListItem,
@@ -135,6 +137,10 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
         .to_list()
     )
 
+    goal_ids = {goal_id for record in records for goal_id in record.goal_ids}
+    goals = await Goal.find({"_id": {"$in": list(goal_ids)}}).to_list() if goal_ids else []
+    goal_titles = {goal.id: goal.title for goal in goals}
+
     return RecordListResponse(
         records=[
             RecordListItem(
@@ -142,7 +148,11 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
                 date=record.date,
                 title=record.title,
                 imageUrl=record.image_url,
-                goalIds=[str(goal_id) for goal_id in record.goal_ids],
+                goals=[
+                    GoalSummary(id=str(goal_id), title=goal_titles[goal_id])
+                    for goal_id in record.goal_ids
+                    if goal_id in goal_titles
+                ],
                 createdAt=record.created_at,
             )
             for record in records

@@ -2,6 +2,7 @@ import logging
 from motor.motor_asyncio import AsyncIOMotorClient
 from beanie import init_beanie
 from app.core.config import settings
+from app.models.goal import Goal
 from app.models.record import Record
 from app.models.user import User
 
@@ -13,7 +14,8 @@ async def init_db():
         database=client[settings.DOCUMENT_DATABASE_NAME],
         document_models=[
             User,
-            Record
+            Record,
+            Goal
         ]
     )
     logger.info("DB 연결 성공 (database=%s)", settings.DOCUMENT_DATABASE_NAME)

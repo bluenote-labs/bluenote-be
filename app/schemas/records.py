@@ -22,12 +22,17 @@ class RecordCreateResponse(BaseModel):
     createdAt: datetime
 
 
+class GoalSummary(BaseModel):
+    id: str
+    title: str
+
+
 class RecordListItem(BaseModel):
     id: str
     date: str
     title: str
     imageUrl: Optional[str] = None
-    goalIds: List[str] = []
+    goals: List[GoalSummary] = []
     createdAt: datetime
 
 
