@@ -1,9 +1,14 @@
 import json
 import logging
+from datetime import datetime
 from typing import AsyncIterator
 
+from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
+from app.models.record import Record
+from app.models.user import User
+from app.schemas.records import RecordCreateRequest, RecordCreateResponse
 from app.services.ai import AIGenerationError, generate_json, stream_completion
 
 logger = logging.getLogger(__name__)
@@ -47,3 +52,31 @@ async def generate_record_stream(input_text: str) -> AsyncIterator[str]:
         yield _format_sse({"type": "done"})
 
     return event_generator()
+
+
+async def create_record(user: User, payload: RecordCreateRequest) -> RecordCreateResponse:
+    today = datetime.now().strftime("%Y-%m-%d")
+
+    existing = await Record.find_one(Record.user_id == user.id, Record.date == today)
+    if existing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="오늘은 이미 기록했어요."
+        )
+
+    record = Record(
+        user_id=user.id,
+        date=today,
+        title=payload.title,
+        content=payload.content,
+        image_url=payload.imageUrl,
+        goal_ids=[PydanticObjectId(goal_id) for goal_id in payload.goalIds],
+    )
+    await record.insert()
+
+    return RecordCreateResponse(
+        id=str(record.id),
+        date=record.date,
+        title=record.title,
+        createdAt=record.created_at,
+    )
