@@ -2,8 +2,8 @@ from fastapi import APIRouter, Depends, Query
 
 from app.core.security import get_current_user
 from app.models.user import User
-from app.schemas.pattern import HeatmapResponse
-from app.services.pattern import get_heatmap
+from app.schemas.pattern import HeatmapResponse, PatternListResponse
+from app.services.pattern import get_heatmap, get_patterns
 
 router = APIRouter()
 
@@ -14,3 +14,10 @@ async def get_heatmap_route(
     user: User = Depends(get_current_user)
 ):
     return await get_heatmap(user, period)
+
+
+@router.get("/analysis", response_model=PatternListResponse, summary="저장된 패턴 조회")
+async def get_patterns_route(
+    user: User = Depends(get_current_user)
+):
+    return await get_patterns(user)

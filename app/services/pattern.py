@@ -5,9 +5,15 @@ from typing import Optional
 
 from fastapi import HTTPException, status
 
+from app.models.pattern import Pattern
 from app.models.record import Record
 from app.models.user import User
-from app.schemas.pattern import HeatmapDay, HeatmapResponse
+from app.schemas.pattern import (
+    HeatmapDay,
+    HeatmapResponse,
+    PatternItem,
+    PatternListResponse,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -61,4 +67,21 @@ async def get_heatmap(user: User, period: str) -> HeatmapResponse:
         mostFrequentDay=_most_frequent_day(record_dates),
         mostActiveMonth=_most_active_month(record_dates),
         days=[HeatmapDay(date=record.date, recordId=str(record.id)) for record in records],
+    )
+
+
+async def get_patterns(user: User) -> PatternListResponse:
+    patterns = await Pattern.find(Pattern.user_id == user.id).sort(-Pattern.created_at).to_list()
+
+    return PatternListResponse(
+        patterns=[
+            PatternItem(
+                id=str(pattern.id),
+                description=pattern.description,
+                evidenceRecordIds=[str(record_id) for record_id in pattern.evidence_record_ids],
+                status=pattern.status,
+                userModifiedDescription=pattern.user_modified_description,
+            )
+            for pattern in patterns
+        ]
     )
