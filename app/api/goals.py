@@ -2,6 +2,7 @@ from fastapi import APIRouter, Depends, status
 
 from app.core.security import get_current_user
 from app.models.user import User
+from app.schemas.base import SuccessResponse
 from app.schemas.goals import (
     GoalCreateRequest,
     GoalCreateResponse,
@@ -11,7 +12,7 @@ from app.schemas.goals import (
     GoalUpdateRequest,
     GoalUpdateResponse,
 )
-from app.services.goals import create_goal, list_goals, parse_goal, update_goal
+from app.services.goals import create_goal, delete_goal, list_goals, parse_goal, update_goal
 
 router = APIRouter()
 
@@ -46,3 +47,11 @@ async def update_goal_route(
     user: User = Depends(get_current_user)
 ):
     return await update_goal(user, goal_id, payload)
+
+
+@router.delete("/{goal_id}", response_model=SuccessResponse, summary="목표 삭제")
+async def delete_goal_route(
+    goal_id: str,
+    user: User = Depends(get_current_user)
+):
+    return await delete_goal(user, goal_id)

@@ -7,6 +7,7 @@ from fastapi import HTTPException, status
 
 from app.models.goal import Goal
 from app.models.user import User
+from app.schemas.base import SuccessResponse
 from app.utils.datetime import today_str
 from app.schemas.goals import (
     GoalCreateRequest,
@@ -142,3 +143,9 @@ async def update_goal(user: User, goal_id: str, payload: GoalUpdateRequest) -> G
         endDate=goal.end_date,
         updatedAt=goal.updated_at,
     )
+
+
+async def delete_goal(user: User, goal_id: str) -> SuccessResponse:
+    goal = await _get_owned_goal(user, goal_id)
+    await goal.delete()
+    return SuccessResponse(success=True)
