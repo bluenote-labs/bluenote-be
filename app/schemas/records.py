@@ -69,6 +69,11 @@ class RecordUpdateResponse(BaseModel):
     updatedAt: datetime
 
 
+class TodayRecordResponse(BaseModel):
+    hasRecord: bool
+    recordId: Optional[str] = None
+
+
 class RecordListQuery(BaseModel):
     page: int = Field(1, ge=1)
     limit: int = Field(10, ge=1, le=100)

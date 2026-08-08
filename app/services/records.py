@@ -23,6 +23,7 @@ from app.schemas.records import (
     RecordListResponse,
     RecordUpdateRequest,
     RecordUpdateResponse,
+    TodayRecordResponse,
 )
 from app.services.ai import AIGenerationError, generate_json, stream_completion
 
@@ -177,6 +178,14 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
         totalPages=total_pages,
         hasNext=query.page < total_pages,
     )
+
+
+async def get_today_record(user: User) -> TodayRecordResponse:
+    today = datetime.now().strftime("%Y-%m-%d")
+    record = await Record.find_one(Record.user_id == user.id, Record.date == today)
+    if record:
+        return TodayRecordResponse(hasRecord=True, recordId=str(record.id))
+    return TodayRecordResponse(hasRecord=False, recordId=None)
 
 
 async def _get_owned_record(user: User, record_id: str) -> Record:

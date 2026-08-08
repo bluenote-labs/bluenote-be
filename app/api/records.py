@@ -15,12 +15,14 @@ from app.schemas.records import (
     RecordListResponse,
     RecordUpdateRequest,
     RecordUpdateResponse,
+    TodayRecordResponse,
 )
 from app.services.records import (
     create_record,
     delete_record,
     generate_record_stream,
     get_record,
+    get_today_record,
     list_records,
     update_record,
 )
@@ -55,6 +57,13 @@ async def list_records_route(
     user: User = Depends(get_current_user)
 ):
     return await list_records(user, query)
+
+
+@router.get("/today", response_model=TodayRecordResponse, summary="오늘 기록 확인")
+async def get_today_record_route(
+    user: User = Depends(get_current_user)
+):
+    return await get_today_record(user)
 
 
 @router.get("/{record_id}", response_model=RecordDetailResponse, summary="기록 상세 조회")
