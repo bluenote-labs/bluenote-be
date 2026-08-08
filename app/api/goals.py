@@ -5,10 +5,11 @@ from app.models.user import User
 from app.schemas.goals import (
     GoalCreateRequest,
     GoalCreateResponse,
+    GoalListResponse,
     GoalParseRequest,
     GoalParseResponse,
 )
-from app.services.goals import create_goal, parse_goal
+from app.services.goals import create_goal, list_goals, parse_goal
 
 router = APIRouter()
 
@@ -27,3 +28,10 @@ async def create_goal_route(
     user: User = Depends(get_current_user)
 ):
     return await create_goal(user, payload)
+
+
+@router.get("", response_model=GoalListResponse, summary="목표 목록 조회")
+async def list_goals_route(
+    user: User = Depends(get_current_user)
+):
+    return await list_goals(user)

@@ -8,6 +8,8 @@ from app.utils.datetime import today_str
 from app.schemas.goals import (
     GoalCreateRequest,
     GoalCreateResponse,
+    GoalListItem,
+    GoalListResponse,
     GoalParseRequest,
     GoalParseResponse,
 )
@@ -64,4 +66,23 @@ async def create_goal(user: User, payload: GoalCreateRequest) -> GoalCreateRespo
         startDate=goal.start_date,
         endDate=goal.end_date,
         createdAt=goal.created_at,
+    )
+
+
+async def list_goals(user: User) -> GoalListResponse:
+    today = today_str()
+    goals = await Goal.find(Goal.user_id == user.id).sort(-Goal.created_at).to_list()
+
+    return GoalListResponse(
+        goals=[
+            GoalListItem(
+                id=str(goal.id),
+                title=goal.title,
+                startDate=goal.start_date,
+                endDate=goal.end_date,
+                isActive=goal.start_date <= today <= goal.end_date,
+                createdAt=goal.created_at,
+            )
+            for goal in goals
+        ]
     )

@@ -26,3 +26,16 @@ class GoalCreateResponse(BaseModel):
     startDate: str
     endDate: str
     createdAt: datetime
+
+
+class GoalListItem(BaseModel):
+    id: str
+    title: str
+    startDate: str
+    endDate: str
+    isActive: bool
+    createdAt: datetime
+
+
+class GoalListResponse(BaseModel):
+    goals: list[GoalListItem]
