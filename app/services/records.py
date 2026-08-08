@@ -9,6 +9,7 @@ from beanie import PydanticObjectId
 from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
+from app.utils.datetime import today_str
 from app.models.goal import Goal
 from app.models.record import Record
 from app.models.user import User
@@ -99,7 +100,7 @@ async def generate_record_stream(input_text: str) -> AsyncIterator[str]:
 
 
 async def create_record(user: User, payload: RecordCreateRequest) -> RecordCreateResponse:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = today_str()
 
     existing = await Record.find_one(Record.user_id == user.id, Record.date == today)
     if existing:
@@ -181,7 +182,7 @@ async def list_records(user: User, query: RecordListQuery) -> RecordListResponse
 
 
 async def get_today_record(user: User) -> TodayRecordResponse:
-    today = datetime.now().strftime("%Y-%m-%d")
+    today = today_str()
     record = await Record.find_one(Record.user_id == user.id, Record.date == today)
     if record:
         return TodayRecordResponse(hasRecord=True, recordId=str(record.id))
