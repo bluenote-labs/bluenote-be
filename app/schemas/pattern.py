@@ -1,0 +1,16 @@
+from typing import Optional
+
+from pydantic import BaseModel
+
+
+class HeatmapDay(BaseModel):
+    date: str
+    recordId: str
+
+
+class HeatmapResponse(BaseModel):
+    period: str
+    totalRecords: int
+    mostFrequentDay: Optional[str] = None
+    mostActiveMonth: Optional[str] = None
+    days: list[HeatmapDay]

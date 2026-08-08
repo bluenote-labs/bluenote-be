@@ -1,0 +1,16 @@
+from fastapi import APIRouter, Depends, Query
+
+from app.core.security import get_current_user
+from app.models.user import User
+from app.schemas.pattern import HeatmapResponse
+from app.services.pattern import get_heatmap
+
+router = APIRouter()
+
+
+@router.get("/heatmap", response_model=HeatmapResponse, summary="히트맵 조회")
+async def get_heatmap_route(
+    period: str = Query("1year", description="조회 기간 (1year: 최근 1년, YYYY: 해당 연도 예: 2025)"),
+    user: User = Depends(get_current_user)
+):
+    return await get_heatmap(user, period)
