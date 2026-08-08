@@ -1,5 +1,8 @@
 import logging
+from datetime import datetime
 
+from beanie import PydanticObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
 from app.models.goal import Goal
@@ -12,6 +15,8 @@ from app.schemas.goals import (
     GoalListResponse,
     GoalParseRequest,
     GoalParseResponse,
+    GoalUpdateRequest,
+    GoalUpdateResponse,
 )
 from app.services.ai import AIGenerationError, generate_json
 
@@ -51,7 +56,17 @@ async def parse_goal(payload: GoalParseRequest) -> GoalParseResponse:
         )
 
 
+def _validate_date_range(start_date: str, end_date: str) -> None:
+    if start_date > end_date:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="종료일은 시작일보다 빠를 수 없어요."
+        )
+
+
 async def create_goal(user: User, payload: GoalCreateRequest) -> GoalCreateResponse:
+    _validate_date_range(payload.startDate, payload.endDate)
+
     goal = Goal(
         user_id=user.id,
         title=payload.title,
@@ -67,6 +82,22 @@ async def create_goal(user: User, payload: GoalCreateRequest) -> GoalCreateRespo
         endDate=goal.end_date,
         createdAt=goal.created_at,
     )
+
+
+async def _get_owned_goal(user: User, goal_id: str) -> Goal:
+    try:
+        goal_oid = PydanticObjectId(goal_id)
+    except (InvalidId, ValueError):
+        goal = None
+    else:
+        goal = await Goal.find_one(Goal.id == goal_oid, Goal.user_id == user.id)
+
+    if not goal:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="목표를 찾을 수 없어요."
+        )
+    return goal
 
 
 async def list_goals(user: User) -> GoalListResponse:
@@ -85,4 +116,29 @@ async def list_goals(user: User) -> GoalListResponse:
             )
             for goal in goals
         ]
+    )
+
+
+async def update_goal(user: User, goal_id: str, payload: GoalUpdateRequest) -> GoalUpdateResponse:
+    goal = await _get_owned_goal(user, goal_id)
+
+    updates = payload.model_dump(exclude_unset=True)
+    if "title" in updates:
+        goal.title = updates["title"]
+    if "startDate" in updates:
+        goal.start_date = updates["startDate"]
+    if "endDate" in updates:
+        goal.end_date = updates["endDate"]
+
+    _validate_date_range(goal.start_date, goal.end_date)
+
+    goal.updated_at = datetime.now()
+    await goal.save()
+
+    return GoalUpdateResponse(
+        id=str(goal.id),
+        title=goal.title,
+        startDate=goal.start_date,
+        endDate=goal.end_date,
+        updatedAt=goal.updated_at,
     )

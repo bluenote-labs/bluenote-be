@@ -8,8 +8,10 @@ from app.schemas.goals import (
     GoalListResponse,
     GoalParseRequest,
     GoalParseResponse,
+    GoalUpdateRequest,
+    GoalUpdateResponse,
 )
-from app.services.goals import create_goal, list_goals, parse_goal
+from app.services.goals import create_goal, list_goals, parse_goal, update_goal
 
 router = APIRouter()
 
@@ -35,3 +37,12 @@ async def list_goals_route(
     user: User = Depends(get_current_user)
 ):
     return await list_goals(user)
+
+
+@router.put("/{goal_id}", response_model=GoalUpdateResponse, summary="목표 수정")
+async def update_goal_route(
+    goal_id: str,
+    payload: GoalUpdateRequest,
+    user: User = Depends(get_current_user)
+):
+    return await update_goal(user, goal_id, payload)
