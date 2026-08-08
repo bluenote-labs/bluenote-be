@@ -2,8 +2,15 @@ import logging
 
 from fastapi import HTTPException, status
 
+from app.models.goal import Goal
+from app.models.user import User
 from app.utils.datetime import today_str
-from app.schemas.goals import GoalParseRequest, GoalParseResponse
+from app.schemas.goals import (
+    GoalCreateRequest,
+    GoalCreateResponse,
+    GoalParseRequest,
+    GoalParseResponse,
+)
 from app.services.ai import AIGenerationError, generate_json
 
 logger = logging.getLogger(__name__)
@@ -40,3 +47,21 @@ async def parse_goal(payload: GoalParseRequest) -> GoalParseResponse:
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="목표 분석에 실패했어요. 다시 시도해주세요."
         )
+
+
+async def create_goal(user: User, payload: GoalCreateRequest) -> GoalCreateResponse:
+    goal = Goal(
+        user_id=user.id,
+        title=payload.title,
+        start_date=payload.startDate,
+        end_date=payload.endDate,
+    )
+    await goal.insert()
+
+    return GoalCreateResponse(
+        id=str(goal.id),
+        title=goal.title,
+        startDate=goal.start_date,
+        endDate=goal.end_date,
+        createdAt=goal.created_at,
+    )
