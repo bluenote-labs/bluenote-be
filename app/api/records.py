@@ -33,7 +33,6 @@ router = APIRouter()
 @router.post("/generate", summary="AI 기록 생성 (SSE)")
 async def generate_record_route(
     payload: RecordGenerateRequest,
-    _: User = Depends(get_current_user)
 ):
     event_stream = await generate_record_stream(payload.input)
     return StreamingResponse(
