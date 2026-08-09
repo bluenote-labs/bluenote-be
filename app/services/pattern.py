@@ -1,10 +1,13 @@
+import json
 import logging
 from collections import Counter
 from datetime import datetime, timedelta
 from typing import Optional
 
+from beanie import PydanticObjectId
 from fastapi import HTTPException, status
 
+from app.models.goal import Goal
 from app.models.pattern import Pattern
 from app.models.record import Record
 from app.models.user import User
@@ -14,8 +17,25 @@ from app.schemas.pattern import (
     PatternItem,
     PatternListResponse,
 )
+from app.services.ai import AIGenerationError, generate_json
 
 logger = logging.getLogger(__name__)
+
+MIN_RECORDS_FOR_ANALYSIS = 5
+RECORD_TEXT_LIMIT = 300
+
+PATTERN_ANALYSIS_SYSTEM_PROMPT = (
+    "너는 사용자의 하루 기록들을 분석해서 반복되는 행동 패턴을 찾아내는 도우미야. "
+    "입력으로 사용자의 기록 목록(records)과 목표 목록(goals)이 JSON으로 주어져. 각 기록에는 고유 id가 있어. "
+    "기록들에서 반복적으로 나타나는 행동/심리 패턴을 2~4개 찾아. "
+    "목표(goals)를 참고하여 특정 목표와 관련된 행동 패턴도 찾아. "
+    "각 패턴은 사용자에게 말하듯 자연스러운 한 문장(description)으로 표현하고, "
+    "그 패턴의 근거가 된 기록들의 id를 evidenceRecordIds 배열에 담아. "
+    "evidenceRecordIds에는 입력으로 주어진 id만 사용하고, 존재하지 않는 id는 절대 만들지 마. "
+    "사용자가 입력한 언어를 그대로 유지해. "
+    '반드시 다음 JSON 형식으로만 응답해: '
+    '{"patterns": [{"description": string, "evidenceRecordIds": [string]}]}'
+)
 
 WEEKDAY_NAMES = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
 
@@ -70,18 +90,78 @@ async def get_heatmap(user: User, period: str) -> HeatmapResponse:
     )
 
 
+def _to_pattern_item(pattern: Pattern) -> PatternItem:
+    return PatternItem(
+        id=str(pattern.id),
+        description=pattern.description,
+        evidenceRecordIds=[str(record_id) for record_id in pattern.evidence_record_ids],
+        status=pattern.status,
+        userModifiedDescription=pattern.user_modified_description,
+    )
+
+
 async def get_patterns(user: User) -> PatternListResponse:
     patterns = await Pattern.find(Pattern.user_id == user.id).sort(-Pattern.created_at).to_list()
+    return PatternListResponse(patterns=[_to_pattern_item(p) for p in patterns])
 
-    return PatternListResponse(
-        patterns=[
-            PatternItem(
-                id=str(pattern.id),
-                description=pattern.description,
-                evidenceRecordIds=[str(record_id) for record_id in pattern.evidence_record_ids],
-                status=pattern.status,
-                userModifiedDescription=pattern.user_modified_description,
-            )
-            for pattern in patterns
-        ]
+
+async def analyze_patterns(user: User) -> PatternListResponse:
+    records = await Record.find(Record.user_id == user.id).sort(-Record.date).to_list()
+    if len(records) < MIN_RECORDS_FOR_ANALYSIS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="패턴을 분석하려면 기록이 5개 이상 필요해요."
+        )
+
+    goals = await Goal.find(Goal.user_id == user.id).to_list()
+
+    ai_input = json.dumps(
+        {
+            "records": [
+                {
+                    "id": str(record.id),
+                    "date": record.date,
+                    "title": record.title,
+                    "text": record.plain_text[:RECORD_TEXT_LIMIT],
+                }
+                for record in records
+            ],
+            "goals": [
+                {"title": goal.title, "startDate": goal.start_date, "endDate": goal.end_date}
+                for goal in goals
+            ],
+        },
+        ensure_ascii=False,
     )
+
+    valid_ids = {str(record.id) for record in records}
+    try:
+        result = await generate_json(PATTERN_ANALYSIS_SYSTEM_PROMPT, ai_input)
+        new_patterns = [
+            Pattern(
+                user_id=user.id,
+                description=raw["description"],
+                evidence_record_ids=[
+                    PydanticObjectId(rid)
+                    for rid in raw.get("evidenceRecordIds", [])
+                    if rid in valid_ids
+                ],
+            )
+            for raw in result["patterns"]
+        ]
+    except (AIGenerationError, KeyError, TypeError) as e:
+        logger.error(f"패턴 분석 실패: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="패턴 분석에 실패했어요. 다시 시도해주세요."
+        )
+
+    # AI 호출 성공 후에만 기존 패턴을 교체한다 (실패 시 기존 패턴 보존)
+    # TODO: tries API 도입 시 진행 중인 시도(end_date >= 오늘)도 함께 삭제해야 한다.
+    # 완료된 시도(result_summary 보유)는 히스토리로 보존하고, pattern_id가 끊기는
+    # 진행 중인 시도만 정리한다.
+    await Pattern.find(Pattern.user_id == user.id).delete()
+    for pattern in new_patterns:
+        await pattern.insert()
+
+    return PatternListResponse(patterns=[_to_pattern_item(p) for p in new_patterns])

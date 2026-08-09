@@ -1,9 +1,9 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, status
 
 from app.core.security import get_current_user
 from app.models.user import User
 from app.schemas.pattern import HeatmapResponse, PatternListResponse
-from app.services.pattern import get_heatmap, get_patterns
+from app.services.pattern import analyze_patterns, get_heatmap, get_patterns
 
 router = APIRouter()
 
@@ -21,3 +21,10 @@ async def get_patterns_route(
     user: User = Depends(get_current_user)
 ):
     return await get_patterns(user)
+
+
+@router.post("/analysis", response_model=PatternListResponse, status_code=status.HTTP_201_CREATED, summary="AI 패턴 분석")
+async def analyze_patterns_route(
+    user: User = Depends(get_current_user)
+):
+    return await analyze_patterns(user)
