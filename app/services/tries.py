@@ -3,11 +3,13 @@ import logging
 from typing import Optional
 
 from beanie import PydanticObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
 from app.models.record import Record
 from app.models.try_ import Try, TryResultSummary
 from app.models.user import User
+from app.schemas.base import SuccessResponse
 from app.schemas.tries import (
     TryCreateRequest,
     TryCreateResponse,
@@ -146,3 +148,25 @@ async def get_tries(user: User) -> TryListResponse:
             for try_doc in past
         ],
     )
+
+
+async def _get_owned_try(user: User, try_id: str) -> Try:
+    try:
+        try_oid = PydanticObjectId(try_id)
+    except (InvalidId, ValueError):
+        try_doc = None
+    else:
+        try_doc = await Try.find_one(Try.id == try_oid, Try.user_id == user.id)
+
+    if not try_doc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="시도를 찾을 수 없어요."
+        )
+    return try_doc
+
+
+async def delete_try(user: User, try_id: str) -> SuccessResponse:
+    try_doc = await _get_owned_try(user, try_id)
+    await try_doc.delete()
+    return SuccessResponse(success=True)
