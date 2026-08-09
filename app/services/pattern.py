@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from beanie import PydanticObjectId
+from bson.errors import InvalidId
 from fastapi import HTTPException, status
 
 from app.models.goal import Goal
@@ -14,6 +15,8 @@ from app.models.user import User
 from app.schemas.pattern import (
     HeatmapDay,
     HeatmapResponse,
+    PatternFeedbackRequest,
+    PatternFeedbackResponse,
     PatternItem,
     PatternListResponse,
 )
@@ -36,6 +39,20 @@ PATTERN_ANALYSIS_SYSTEM_PROMPT = (
     '반드시 다음 JSON 형식으로만 응답해: '
     '{"patterns": [{"description": string, "evidenceRecordIds": [string]}]}'
 )
+
+PATTERN_TRY_SYSTEM_PROMPT = (
+    "너는 사용자의 행동 패턴을 극복할 수 있는 아주 작고 구체적인 시도를 제안하는 도우미야. "
+    "부담 없이 바로 실행할 수 있는 2~4개의 짧은 행동을 제안해. "
+    "각 제안은 '~하기' 형태의 간결한 명사구로 만들어. "
+    "사용자가 입력한 언어를 그대로 유지해. "
+    '반드시 다음 JSON 형식으로만 응답해: {"suggestedTries": [string]}'
+)
+
+ACTION_STATUS_MAP = {
+    "confirm": "confirmed",
+    "modify": "modified",
+    "defer": "deferred",
+}
 
 WEEKDAY_NAMES = ["월요일", "화요일", "수요일", "목요일", "금요일", "토요일", "일요일"]
 
@@ -165,3 +182,67 @@ async def analyze_patterns(user: User) -> PatternListResponse:
         await pattern.insert()
 
     return PatternListResponse(patterns=[_to_pattern_item(p) for p in new_patterns])
+
+
+async def _get_owned_pattern(user: User, pattern_id: str) -> Pattern:
+    try:
+        pattern_oid = PydanticObjectId(pattern_id)
+    except (InvalidId, ValueError):
+        pattern = None
+    else:
+        pattern = await Pattern.find_one(Pattern.id == pattern_oid, Pattern.user_id == user.id)
+
+    if not pattern:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="패턴을 찾을 수 없어요."
+        )
+    return pattern
+
+
+async def _generate_suggested_tries(description: str) -> list[str]:
+    try:
+        result = await generate_json(PATTERN_TRY_SYSTEM_PROMPT, description)
+        return result["suggestedTries"]
+    except (AIGenerationError, KeyError, TypeError) as e:
+        logger.error(f"추천 시도 생성 실패: {e}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="추천 시도 생성에 실패했어요. 다시 시도해주세요."
+        )
+
+
+async def submit_pattern_feedback(
+    user: User, pattern_id: str, payload: PatternFeedbackRequest
+) -> PatternFeedbackResponse:
+    pattern = await _get_owned_pattern(user, pattern_id)
+
+    if payload.action not in ACTION_STATUS_MAP:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="유효하지 않은 action이에요."
+        )
+    if payload.action == "modify" and not payload.modifiedDescription:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="수정할 패턴 설명을 입력해주세요."
+        )
+
+    pattern.status = ACTION_STATUS_MAP[payload.action]
+    if payload.action == "modify":
+        pattern.user_modified_description = payload.modifiedDescription
+    pattern.updated_at = datetime.now()
+    await pattern.save()
+
+    effective_description = pattern.user_modified_description or pattern.description
+
+    suggested_tries: list[str] = []
+    if payload.action in ("confirm", "modify"):
+        suggested_tries = await _generate_suggested_tries(effective_description)
+
+    return PatternFeedbackResponse(
+        id=str(pattern.id),
+        status=pattern.status,
+        description=effective_description,
+        suggestedTries=suggested_tries,
+    )

@@ -2,8 +2,18 @@ from fastapi import APIRouter, Depends, Query, status
 
 from app.core.security import get_current_user
 from app.models.user import User
-from app.schemas.pattern import HeatmapResponse, PatternListResponse
-from app.services.pattern import analyze_patterns, get_heatmap, get_patterns
+from app.schemas.pattern import (
+    HeatmapResponse,
+    PatternFeedbackRequest,
+    PatternFeedbackResponse,
+    PatternListResponse,
+)
+from app.services.pattern import (
+    analyze_patterns,
+    get_heatmap,
+    get_patterns,
+    submit_pattern_feedback,
+)
 
 router = APIRouter()
 
@@ -28,3 +38,12 @@ async def analyze_patterns_route(
     user: User = Depends(get_current_user)
 ):
     return await analyze_patterns(user)
+
+
+@router.put("/{pattern_id}/feedback", response_model=PatternFeedbackResponse, summary="패턴 피드백")
+async def submit_pattern_feedback_route(
+    pattern_id: str,
+    payload: PatternFeedbackRequest,
+    user: User = Depends(get_current_user)
+):
+    return await submit_pattern_feedback(user, pattern_id, payload)

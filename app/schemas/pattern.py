@@ -26,3 +26,15 @@ class PatternItem(BaseModel):
 
 class PatternListResponse(BaseModel):
     patterns: list[PatternItem]
+
+
+class PatternFeedbackRequest(BaseModel):
+    action: str
+    modifiedDescription: Optional[str] = None
+
+
+class PatternFeedbackResponse(BaseModel):
+    id: str
+    status: str
+    description: str
+    suggestedTries: list[str]
