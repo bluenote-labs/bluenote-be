@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     REDIRECT_URI: str = ""
     AZURE_STORAGE_CONNECTION_STR: str = ""
     AZURE_STORAGE_CONTAINER_NAME: str = ""
+    OPENAI_API_KEY: str = ""
     model_config = {"env_file": ".env", "extra": "ignore"}
 
 
