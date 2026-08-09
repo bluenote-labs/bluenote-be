@@ -20,8 +20,6 @@ from app.schemas.pattern import (
     PatternFeedbackResponse,
     PatternItem,
     PatternListResponse,
-    TryCreateRequest,
-    TryCreateResponse,
 )
 from app.services.ai import AIGenerationError, generate_json
 from app.utils.datetime import today_str
@@ -194,7 +192,7 @@ async def analyze_patterns(user: User) -> PatternListResponse:
     return PatternListResponse(patterns=[_to_pattern_item(p) for p in new_patterns])
 
 
-async def _get_owned_pattern(user: User, pattern_id: str) -> Pattern:
+async def get_owned_pattern(user: User, pattern_id: str) -> Pattern:
     try:
         pattern_oid = PydanticObjectId(pattern_id)
     except (InvalidId, ValueError):
@@ -225,7 +223,7 @@ async def _generate_suggested_tries(description: str) -> list[str]:
 async def submit_pattern_feedback(
     user: User, pattern_id: str, payload: PatternFeedbackRequest
 ) -> PatternFeedbackResponse:
-    pattern = await _get_owned_pattern(user, pattern_id)
+    pattern = await get_owned_pattern(user, pattern_id)
 
     if payload.action not in ACTION_STATUS_MAP:
         raise HTTPException(
@@ -255,36 +253,4 @@ async def submit_pattern_feedback(
         status=pattern.status,
         description=effective_description,
         suggestedTries=suggested_tries,
-    )
-
-
-async def create_try(user: User, payload: TryCreateRequest) -> TryCreateResponse:
-    await _get_owned_pattern(user, payload.patternId)
-
-    ongoing = await Try.find_one(
-        Try.user_id == user.id,
-        {"end_date": {"$gte": today_str()}},
-    )
-    if ongoing:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="이미 진행 중인 시도가 있어요."
-        )
-
-    try_doc = Try(
-        user_id=user.id,
-        pattern_id=PydanticObjectId(payload.patternId),
-        action=payload.action,
-        start_date=payload.startDate,
-        end_date=payload.endDate,
-    )
-    await try_doc.insert()
-
-    return TryCreateResponse(
-        id=str(try_doc.id),
-        patternId=str(try_doc.pattern_id),
-        action=try_doc.action,
-        startDate=try_doc.start_date,
-        endDate=try_doc.end_date,
-        createdAt=try_doc.created_at,
     )

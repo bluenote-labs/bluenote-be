@@ -1,4 +1,3 @@
-from datetime import datetime
 from typing import Optional
 
 from pydantic import BaseModel
@@ -39,19 +38,3 @@ class PatternFeedbackResponse(BaseModel):
     status: str
     description: str
     suggestedTries: list[str]
-
-
-class TryCreateRequest(BaseModel):
-    patternId: str
-    action: str
-    startDate: str
-    endDate: str
-
-
-class TryCreateResponse(BaseModel):
-    id: str
-    patternId: str
-    action: str
-    startDate: str
-    endDate: str
-    createdAt: datetime
