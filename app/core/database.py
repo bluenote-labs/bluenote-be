@@ -5,6 +5,7 @@ from app.core.config import settings
 from app.models.goal import Goal
 from app.models.pattern import Pattern
 from app.models.record import Record
+from app.models.try_ import Try
 from app.models.user import User
 
 logger = logging.getLogger(__name__)
@@ -17,7 +18,8 @@ async def init_db():
             User,
             Record,
             Goal,
-            Pattern
+            Pattern,
+            Try
         ]
     )
     logger.info("DB 연결 성공 (database=%s)", settings.DOCUMENT_DATABASE_NAME)

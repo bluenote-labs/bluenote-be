@@ -11,6 +11,7 @@ from fastapi import HTTPException, status
 from app.models.goal import Goal
 from app.models.pattern import Pattern
 from app.models.record import Record
+from app.models.try_ import Try
 from app.models.user import User
 from app.schemas.pattern import (
     HeatmapDay,
@@ -19,8 +20,11 @@ from app.schemas.pattern import (
     PatternFeedbackResponse,
     PatternItem,
     PatternListResponse,
+    TryCreateRequest,
+    TryCreateResponse,
 )
 from app.services.ai import AIGenerationError, generate_json
+from app.utils.datetime import today_str
 
 logger = logging.getLogger(__name__)
 
@@ -174,9 +178,15 @@ async def analyze_patterns(user: User) -> PatternListResponse:
         )
 
     # AI 호출 성공 후에만 기존 패턴을 교체한다 (실패 시 기존 패턴 보존)
-    # TODO: tries API 도입 시 진행 중인 시도(end_date >= 오늘)도 함께 삭제해야 한다.
-    # 완료된 시도(result_summary 보유)는 히스토리로 보존하고, pattern_id가 끊기는
-    # 진행 중인 시도만 정리한다.
+    old_pattern_ids = [p.id for p in await Pattern.find(Pattern.user_id == user.id).to_list()]
+
+    # 완료된 시도(end_date < 오늘)는 result_summary가 담긴 히스토리라 보존하고,
+    # 삭제되는 패턴과 연결되어 진행 중인 시도만 함께 정리한다.
+    await Try.find(
+        Try.user_id == user.id,
+        {"pattern_id": {"$in": old_pattern_ids}},
+        {"end_date": {"$gte": today_str()}},
+    ).delete()
     await Pattern.find(Pattern.user_id == user.id).delete()
     for pattern in new_patterns:
         await pattern.insert()
@@ -245,4 +255,36 @@ async def submit_pattern_feedback(
         status=pattern.status,
         description=effective_description,
         suggestedTries=suggested_tries,
+    )
+
+
+async def create_try(user: User, payload: TryCreateRequest) -> TryCreateResponse:
+    await _get_owned_pattern(user, payload.patternId)
+
+    ongoing = await Try.find_one(
+        Try.user_id == user.id,
+        {"end_date": {"$gte": today_str()}},
+    )
+    if ongoing:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="이미 진행 중인 시도가 있어요."
+        )
+
+    try_doc = Try(
+        user_id=user.id,
+        pattern_id=PydanticObjectId(payload.patternId),
+        action=payload.action,
+        start_date=payload.startDate,
+        end_date=payload.endDate,
+    )
+    await try_doc.insert()
+
+    return TryCreateResponse(
+        id=str(try_doc.id),
+        patternId=str(try_doc.pattern_id),
+        action=try_doc.action,
+        startDate=try_doc.start_date,
+        endDate=try_doc.end_date,
+        createdAt=try_doc.created_at,
     )

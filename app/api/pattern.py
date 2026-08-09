@@ -7,9 +7,12 @@ from app.schemas.pattern import (
     PatternFeedbackRequest,
     PatternFeedbackResponse,
     PatternListResponse,
+    TryCreateRequest,
+    TryCreateResponse,
 )
 from app.services.pattern import (
     analyze_patterns,
+    create_try,
     get_heatmap,
     get_patterns,
     submit_pattern_feedback,
@@ -47,3 +50,11 @@ async def submit_pattern_feedback_route(
     user: User = Depends(get_current_user)
 ):
     return await submit_pattern_feedback(user, pattern_id, payload)
+
+
+@router.post("/tries", response_model=TryCreateResponse, status_code=status.HTTP_201_CREATED, summary="시도 생성")
+async def create_try_route(
+    payload: TryCreateRequest,
+    user: User = Depends(get_current_user)
+):
+    return await create_try(user, payload)
